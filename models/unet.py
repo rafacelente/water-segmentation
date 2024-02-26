@@ -7,7 +7,7 @@ import torch
 class UNETModule(pl.LightningModule):
     def __init__(self):
         super(UNETModule, self).__init__()
-        self.model = smp.Unet("resnet18", encoder_weights=None, in_channels=3, classes=1)
+        self.model = smp.Unet("resnet101", encoder_weights="imagenet", in_channels=3, classes=1)
         self.loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
         self.validation_iou = SegmentationIOU(
             reduction="micro-imagewise",
