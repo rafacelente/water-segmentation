@@ -1,0 +1,3 @@
+lightning
+segmentation_models_pytorch
+torch==2.2.1
