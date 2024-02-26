@@ -70,9 +70,13 @@ class SimpleWaterBodiesDataset(WaterBodiesDataset):
         # resize images
         # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
         ##mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
+        
         image = np.array(Image.fromarray(sample["image"]))
         mask = np.array(Image.fromarray(sample["mask"]))
-
+        if image.shape != (480, 640, 3):
+            image = np.array(Image.fromarray(image).resize((640, 480), Image.BILINEAR))
+        if mask.shape != (480, 640):
+            mask = np.array(Image.fromarray(mask).resize((640, 480), Image.NEAREST))
         # convert to other format HWC -> CHW
         sample["image"] = np.moveaxis(image, -1, 0)
         sample["mask"] = np.expand_dims(mask, 0)
