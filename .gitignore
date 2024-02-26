@@ -3,3 +3,7 @@ lightning_logs/
 .ipynb_checkpoints/
 *.pyc
 __pycache__/
+wandb/
+create_submission_csv.py
+submission_*
+submission-*

@@ -24,7 +24,7 @@ class WaterBodiesDataset(torch.utils.data.Dataset):
         return len(self.filenames)
 
     def __getitem__(self, idx):
-
+        
         filename = self.filenames[idx]
         image_path = os.path.join(self.images_directory, filename + ".jpg")
         mask_path = os.path.join(self.masks_directory, filename + ".png")
@@ -55,7 +55,6 @@ class WaterBodiesDataset(torch.utils.data.Dataset):
 
 class SimpleWaterBodiesDataset(WaterBodiesDataset):
     def __getitem__(self, *args, **kwargs):
-
         sample = super().__getitem__(*args, **kwargs)
 
         image = Image.fromarray(sample["image"].astype(np.uint8))
@@ -65,8 +64,8 @@ class SimpleWaterBodiesDataset(WaterBodiesDataset):
         if mask.size != (640, 480):
             mask = mask.resize((640, 480), Image.NEAREST)
         
-        image = np.array(image, dtype=np.float32)
-        mask = np.array(mask, dtype=np.float32)
+        image = np.array(image, dtype=np.uint8)
+        mask = np.array(mask, dtype=np.uint8)
 
         if self.transform is not None:
             transformed = self.transform(image=image, mask=mask)
@@ -74,7 +73,35 @@ class SimpleWaterBodiesDataset(WaterBodiesDataset):
             mask = transformed["mask"]
 
         sample = {
-            "image": image,
+            "image": image, #np.transpose(image, (2, 0, 1)),
             "mask": np.expand_dims(mask, 0)
         }
         return sample
+
+class PredictionWaterBodiesDataset:
+    def __init__(self, root, transform=None):
+        self.root = root
+        self.transform = transform
+
+        self.images_directory = os.path.join(self.root, f"testset/images")
+        self.filenames = self._read_split()  # read train/valid/test splits
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, idx):
+
+        filename = self.filenames[idx]
+        image_path = os.path.join(self.images_directory, filename + ".jpg")
+
+        image = np.array(Image.open(image_path).convert("RGB"))
+        image = Image.fromarray(image.astype(np.uint8))
+        if image.size != (640, 480):
+            print(f"found image with size: {image.size}")
+            image = image.resize((640, 480), Image.BILINEAR)
+        return filename, np.transpose(np.array(image, dtype=np.float32), (2, 0, 1))
+
+
+    def _read_split(self):
+        filenames = [image.replace(".jpg", "") for image in os.listdir(self.images_directory)]
+        return filenames

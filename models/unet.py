@@ -5,24 +5,32 @@ from metrics import SegmentationIOU
 import torch
 
 class UNETModule(pl.LightningModule):
-    def __init__(self):
+    def __init__(
+        self,
+        encoder="resnet152",
+        encoder_weights="imagenet",
+        loss_fn="dice",
+        ):
         super(UNETModule, self).__init__()
-        self.model = smp.Unet("resnet101", encoder_weights="imagenet", in_channels=3, classes=1)
-        self.loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
+        self.model = smp.Unet(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        if loss_fn == "dice":
+            self.loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
+        elif loss_fn == "jaccard":
+            self.loss_fn = smp.losses.JaccardLoss(smp.losses.BINARY_MODE, from_logits=True)
         self.validation_iou = SegmentationIOU(
             reduction="micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.5
+            mask_threshold=0.7
         )
         self.training_iou = SegmentationIOU(
             reduction="micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.5
+            mask_threshold=0.7
         )
         self.test_iou = SegmentationIOU(
             reduction="micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.5
+            mask_threshold=0.7
         )
 
     @classmethod
@@ -60,6 +68,7 @@ class UNETModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         loss, logits, masks = self.shared_step(batch, "train")
         self.training_iou.update(logits, masks)
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {
             "loss":loss,
             "tp": self.training_iou.tp,
@@ -78,6 +87,7 @@ class UNETModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         loss, logits, masks = self.shared_step(batch, "val")
         self.validation_iou.update(logits, masks)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {
             "loss":loss,
             "tp": self.validation_iou.tp,
@@ -109,9 +119,21 @@ class UNETModule(pl.LightningModule):
         self.log("test_iou", iou, on_epoch=True, prog_bar=True)
     
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        _, logits, _ = self.shared_step(batch, "predict")
-        return logits
+        filename, x = batch
+        x = x.float()
+        logits = self(x)
+        preds = (torch.sigmoid(logits) > 0.7).float()
+        return logits, preds, filename
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10, verbose=True)
+        return {
+           'optimizer': optimizer,
+           'lr_scheduler': {
+               'scheduler': scheduler,
+               'monitor': 'val_iou',  # Name of the metric to monitor
+               'interval': 'epoch',
+               'frequency': 1,
+           }
+        }
