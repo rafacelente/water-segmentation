@@ -1,10 +1,7 @@
 import os
 import torch
 import numpy as np
-
 from PIL import Image
-
-
 class WaterBodiesDataset(torch.utils.data.Dataset):
     def __init__(self, root, mode="train", transform=None):
 
@@ -38,8 +35,6 @@ class WaterBodiesDataset(torch.utils.data.Dataset):
         mask = self._preprocess_mask(trimap)
 
         sample = dict(image=image, mask=mask)
-        if self.transform is not None:
-            sample = self.transform(**sample)
 
         return sample
 
@@ -50,10 +45,6 @@ class WaterBodiesDataset(torch.utils.data.Dataset):
         return mask
 
     def _read_split(self):
-        # split_filename = "test.txt" if self.mode == "test" else "trainval.txt"
-        # split_filepath = os.path.join(self.root, "Annotations", split_filename)
-        # with open(split_filepath) as f:
-        #     split_data = f.read().strip("\n").split("\n")
         filenames = [image.replace(".jpg", "") for image in os.listdir(self.images_directory)]
         if self.mode == "train":  # 90% for train
             filenames = [x for i, x in enumerate(filenames) if i % 10 != 0]
@@ -67,18 +58,23 @@ class SimpleWaterBodiesDataset(WaterBodiesDataset):
 
         sample = super().__getitem__(*args, **kwargs)
 
-        # resize images
-        # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
-        ##mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
+        image = Image.fromarray(sample["image"].astype(np.uint8))
+        mask = Image.fromarray(sample["mask"].astype(np.uint8))
+        if image.size != (640, 480):
+            image = image.resize((640, 480), Image.BILINEAR)
+        if mask.size != (640, 480):
+            mask = mask.resize((640, 480), Image.NEAREST)
         
-        image = np.array(Image.fromarray(sample["image"]))
-        mask = np.array(Image.fromarray(sample["mask"]))
-        if image.shape != (480, 640, 3):
-            image = np.array(Image.fromarray(image).resize((640, 480), Image.BILINEAR))
-        if mask.shape != (480, 640):
-            mask = np.array(Image.fromarray(mask).resize((640, 480), Image.NEAREST))
-        # convert to other format HWC -> CHW
-        sample["image"] = np.moveaxis(image, -1, 0)
-        sample["mask"] = np.expand_dims(mask, 0)
+        image = np.array(image, dtype=np.float32)
+        mask = np.array(mask, dtype=np.float32)
 
+        if self.transform is not None:
+            transformed = self.transform(image=image, mask=mask)
+            image = transformed["image"]
+            mask = transformed["mask"]
+
+        sample = {
+            "image": image,
+            "mask": np.expand_dims(mask, 0)
+        }
         return sample
