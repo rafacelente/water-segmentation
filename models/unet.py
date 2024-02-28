@@ -143,7 +143,7 @@ class UNETModule(pl.LightningModule):
         filename, x = batch
         x = x.float()
         logits = self(x)
-        preds = (torch.sigmoid(logits) > 0.5).float()
+        preds = (torch.sigmoid(logits) > 0.6).float()
         return logits, preds, filename
     
     def configure_optimizers(self):
