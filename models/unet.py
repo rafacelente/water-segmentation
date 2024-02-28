@@ -7,30 +7,46 @@ import torch
 class UNETModule(pl.LightningModule):
     def __init__(
         self,
+        model="unet",
         encoder="resnet152",
         encoder_weights="imagenet",
         loss_fn="dice",
         ):
         super(UNETModule, self).__init__()
-        self.model = smp.Unet(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        if model == "unet":
+            self.model = smp.Unet(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        elif model == "deeplabv3":
+            self.model = smp.DeepLabV3(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        elif model == "FPN":
+            self.model = smp.FPN(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        elif model == "unetpp":
+            self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        
+        self.cross_entroy = False
         if loss_fn == "dice":
             self.loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
         elif loss_fn == "jaccard":
             self.loss_fn = smp.losses.JaccardLoss(smp.losses.BINARY_MODE, from_logits=True)
+        elif loss_fn == "crossentropy":
+            self.cross_entropy = True
+            self.loss_fn = nn.BCELoss()
+            
         self.validation_iou = SegmentationIOU(
-            reduction="micro-imagewise",
+            reduction="micro",#"micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.7
+            mask_threshold=0.5
         )
         self.training_iou = SegmentationIOU(
-            reduction="micro-imagewise",
+            reduction="micro",#"micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.7
+            mask_threshold=0.5,
+            
         )
         self.test_iou = SegmentationIOU(
-            reduction="micro-imagewise",
+            reduction="micro",#"micro-imagewise",
             activation=torch.sigmoid,
-            mask_threshold=0.7
+            mask_threshold=0.5,
+            
         )
 
     @classmethod
@@ -59,7 +75,12 @@ class UNETModule(pl.LightningModule):
         logits = self(x)
         assert logits.shape == y.shape, f"Output shape {logits.shape} does not match target shape {y.shape}"
         assert y.max() <= 1 and y.min() >= 0, f"Target mask should be binary, but got {y.min()} and {y.max()}"
-        loss = self.loss_fn(logits, y)
+        if self.cross_entropy:
+            preds = torch.sigmoid(logits)
+            loss = self.loss_fn(preds, y)
+        else:
+            loss = self.loss_fn(logits, y)
+            
         return loss, logits, y
 
     def on_train_epoch_start(self):
@@ -122,7 +143,7 @@ class UNETModule(pl.LightningModule):
         filename, x = batch
         x = x.float()
         logits = self(x)
-        preds = (torch.sigmoid(logits) > 0.7).float()
+        preds = (torch.sigmoid(logits) > 0.5).float()
         return logits, preds, filename
     
     def configure_optimizers(self):
@@ -132,7 +153,7 @@ class UNETModule(pl.LightningModule):
            'optimizer': optimizer,
            'lr_scheduler': {
                'scheduler': scheduler,
-               'monitor': 'val_iou',  # Name of the metric to monitor
+               'monitor': 'train_loss',  # Name of the metric to monitor
                'interval': 'epoch',
                'frequency': 1,
            }

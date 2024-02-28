@@ -32,7 +32,7 @@ class SegmentationIOU(Metric):
         """
         prob_mask = self.activation(preds)
         pred_mask = (prob_mask > self.mask_threshold).float()
-        tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), target.long(), mode="binary")
+        tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), target.long(), mode="binary", threshold=0.5)
         #print(f"tp: {tp},\n fp: {fp},\n fn: {fn},\n tn: {tn}\n\n")
         self.tp = torch.cat((self.tp, tp))
         self.fp = torch.cat((self.fp, fp))

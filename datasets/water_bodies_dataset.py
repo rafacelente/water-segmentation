@@ -2,6 +2,8 @@ import os
 import torch
 import numpy as np
 from PIL import Image
+import random
+
 class WaterBodiesDataset(torch.utils.data.Dataset):
     def __init__(self, root, mode="train", transform=None):
 
@@ -45,11 +47,15 @@ class WaterBodiesDataset(torch.utils.data.Dataset):
         return mask
 
     def _read_split(self):
+        split_percentage = 10
         filenames = [image.replace(".jpg", "") for image in os.listdir(self.images_directory)]
+        num_to_select = int(len(filenames) * split_percentage / 100)
+        val_filenames = random.sample(filenames, num_to_select)
+        train_filenames = [filename for filename in filenames if filename not in val_filenames]
         if self.mode == "train":  # 90% for train
-            filenames = [x for i, x in enumerate(filenames) if i % 10 != 0]
+            return train_filenames
         elif self.mode == "val":  # 10% for validation
-            filenames = [x for i, x in enumerate(filenames) if i % 10 == 0]
+            return val_filenames
         return filenames
     
 
@@ -99,7 +105,15 @@ class PredictionWaterBodiesDataset:
         if image.size != (640, 480):
             print(f"found image with size: {image.size}")
             image = image.resize((640, 480), Image.BILINEAR)
-        return filename, np.transpose(np.array(image, dtype=np.float32), (2, 0, 1))
+            
+        image = np.array(image, dtype=np.uint8)
+            
+        if self.transform is not None:
+            transformed = self.transform(image=image)
+            image = transformed["image"]
+
+        
+        return filename, image
 
 
     def _read_split(self):
