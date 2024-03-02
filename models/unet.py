@@ -21,6 +21,8 @@ class UNETModule(pl.LightningModule):
             self.model = smp.FPN(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
         elif model == "unetpp":
             self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=encoder_weights, in_channels=3, classes=1)
+        else:
+            raise ValueError(f"Model type {model} not supported")
         
         self.cross_entroy = False
         if loss_fn == "dice":
@@ -30,6 +32,8 @@ class UNETModule(pl.LightningModule):
         elif loss_fn == "crossentropy":
             self.cross_entropy = True
             self.loss_fn = nn.BCELoss()
+        else:
+            raise ValueError(f"Loss function {loss_fn} not supported")
             
         self.validation_iou = SegmentationIOU(
             reduction="micro",#"micro-imagewise",
@@ -153,7 +157,7 @@ class UNETModule(pl.LightningModule):
            'optimizer': optimizer,
            'lr_scheduler': {
                'scheduler': scheduler,
-               'monitor': 'train_loss',  # Name of the metric to monitor
+               'monitor': 'train_loss',
                'interval': 'epoch',
                'frequency': 1,
            }
